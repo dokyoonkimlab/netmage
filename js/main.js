@@ -20,21 +20,20 @@ function GetQueryStringParams(sParam,defaultVal) {
 
 
 jQuery.getJSON(GetQueryStringParams("config","config.json"), function(data, textStatus, jqXHR) {
-	config=data;
-	
-	if (config.type!="network") {
-		//bad config
-		alert("Invalid configuration settings.")
-		return;
-	}
-	
-	//As soon as page is ready (and data ready) set up it
-	$(document).ready(setupGUI(config));
+    config=data;
+    
+    if (config.type!="network") {
+        //bad config
+        alert("Invalid configuration settings.")
+        return;
+    }
+    
+    //As soon as page is ready (and data ready) set up it
+    $(document).ready(setupGUI(config));
 });//End JSON Config load
 
 
 // FUNCTION DECLARATIONS
-
 Object.size = function(obj) {
     var size = 0, key;
     for (key in obj) {
@@ -44,13 +43,12 @@ Object.size = function(obj) {
 };
 
 function initSigma(config) {
-	var data=config.data
-	
-	var drawProps, graphProps,mouseProps;
-	if (config.sigma && config.sigma.drawingProperties) 
-		drawProps=config.sigma.drawingProperties;
-	else
-		drawProps={
+    var data = config.data    
+    var drawProps, graphProps,mouseProps;
+    if (config.sigma && config.sigma.drawingProperties) 
+        drawProps=config.sigma.drawingProperties;
+    else
+        drawProps={
         defaultLabelColor: "#000",
         defaultLabelSize: 14,
         defaultLabelBGColor: "#ddd",
@@ -63,118 +61,120 @@ function initSigma(config) {
         activeFontStyle: "bold"
     };
     
-    if (config.sigma && config.sigma.graphProperties)	
-    	graphProps=config.sigma.graphProperties;
+    if (config.sigma && config.sigma.graphProperties)   
+        graphProps=config.sigma.graphProperties;
     else
-    	graphProps={
+        graphProps={
         minNodeSize: 1,
         maxNodeSize: 7,
         minEdgeSize: 0.2,
         maxEdgeSize: 0.5
-    	};
-	
-	if (config.sigma && config.sigma.mouseProperties) 
-		mouseProps=config.sigma.mouseProperties;
-	else
-		mouseProps={
+        };
+    
+    if (config.sigma && config.sigma.mouseProperties) 
+        mouseProps=config.sigma.mouseProperties;
+    else
+        mouseProps={
         minRatio: 0.75, // How far can we zoom out?
         maxRatio: 20, // How far can we zoom in?
-    	};
-	
+        };
+    
     var a = sigma.init(document.getElementById("sigma-canvas")).drawingProperties(drawProps).graphProperties(graphProps).mouseProperties(mouseProps);
     sigInst = a;
+
     a.active = !1;
     a.neighbors = {};
     a.detail = !1;
 
 
     dataReady = function() {//This is called as soon as data is loaded
-		a.clusters = {};
+        a.clusters = {};
+        a.clusterNames = {};
 
-		a.iterNodes(
-			function (b) { //This is where we populate the array used for the group select box
+        a.iterNodes(
+            function (b) { //This is where we populate the array used for the group select box
+                // note: index may not be consistent for all nodes. Should calculate each time. 
+                a.clusters[b.color] || (a.clusters[b.color] = []);
+                a.clusters[b.color].push(b.id);//SAH: push id not label
+                a.clusterNames[b.color] || (sigInst.clusterNames[b.color] = []);
+                a.clusterNames[b.color]=b.attr.attributes["Category"];//The label of the group for color b.color (Perhaps you want b.attr["my_custom_column"] here)
+            }
+        
+        );
+    
+        a.bind("upnodes", function (a) {
+            nodeActive(a.content[0])
+        });
 
-				// note: index may not be consistent for all nodes. Should calculate each time. 
-				 // alert(JSON.stringify(b.attr.attributes[5].val));
-				// alert(b.x);
-				a.clusters[b.color] || (a.clusters[b.color] = []);
-				a.clusters[b.color].push(b.id);//SAH: push id not label
-			}
-		
-		);
-	
-		a.bind("upnodes", function (a) {
-		    nodeActive(a.content[0])
-		});
-
-		a.draw();
-		configSigmaElements(config);
-	}
+        a.draw();
+        configSigmaElements(config);
+        populateSearch();
+    }
 
     if (data.indexOf("gexf")>0 || data.indexOf("xml")>0)
         a.parseGexf(data,dataReady);
     else
-	    a.parseJson(data,dataReady);
+        a.parseJson(data,dataReady);
     gexf = sigmaInst = null;
 }
 
 
 function setupGUI(config) {
-	// Initialise main interface elements
-	var logo=""; // Logo elements
-	if (config.logo.file) {
+    // Initialise main interface elements
+    var logo=""; // Logo elements
+    if (config.logo.file) {
 
-		logo = "<img src=\"" + config.logo.file +"\"";
-		if (config.logo.text) logo+=" alt=\"" + config.logo.text + "\"";
-		logo+=">";
-	} else if (config.logo.text) {
-		logo="<h1>"+config.logo.text+"</h1>";
-	}
-	if (config.logo.link) logo="<a href=\"" + config.logo.link + "\">"+logo+"</a>";
-	$("#maintitle").html(logo);
+        logo = "<img src=\"" + config.logo.file +"\"";
+        if (config.logo.text) logo+=" alt=\"" + config.logo.text + "\"";
+        logo+=">";
+    } else if (config.logo.text) {
+        logo="<h1>"+config.logo.text+"</h1>";
+    }
+    if (config.logo.link) logo="<a href=\"" + config.logo.link + "\">"+logo+"</a>";
+    $("#maintitle").html(logo);
 
-	// #title
-	$("#title").html("<h2>"+config.text.title+"</h2>");
+    // #title
+    $("#title").html("<h2>"+config.text.title+"</h2>");
 
-	// #titletext
-	$("#titletext").html(config.text.intro);
+    // #titletext
+    $("#titletext").html(config.text.intro);
 
-	// More information
-	if (config.text.more) {
-		$("#information").html(config.text.more);
-	} else {
-		//hide more information link
-		$("#moreinformation").hide();
-	}
+    // More information
+    if (config.text.more) {
+        $("#information").html(config.text.more);
+    } else {
+        //hide more information link
+        $("#moreinformation").hide();
+    }
 
-	// Legend
+    // Legend
 
-	// Node
-	if (config.legend.nodeLabel) {
-		$(".node").next().html(config.legend.nodeLabel);
-	} else {
-		//hide more information link
-		$(".node").hide();
-	}
-	// Edge
-	if (config.legend.edgeLabel) {
-		$(".edge").next().html(config.legend.edgeLabel);
-	} else {
-		//hide more information link
-		$(".edge").hide();
-	}
-	// Colours
-	if (config.legend.nodeLabel) {
-		$(".colours").next().html(config.legend.colorLabel);
-	} else {
-		//hide more information link
-		$(".colours").hide();
-	}
+    // Node
+    if (config.legend.nodeLabel) {
+        $(".node").next().html(config.legend.nodeLabel);
+    } else {
+        //hide more information link
+        $(".node").hide();
+    }
+    // Edge
+    if (config.legend.edgeLabel) {
+        $(".edge").next().html(config.legend.edgeLabel);
+    } else {
+        //hide more information link
+        $(".edge").hide();
+    }
+    // Colours
+    if (config.legend.nodeLabel) {
+        $(".colours").next().html(config.legend.colorLabel);
+    } else {
+        //hide more information link
+        $(".colours").hide();
+    }
 
-	$GP = {
-		calculating: !1,
-		showgroup: !1
-	};
+    $GP = {
+        calculating: !1,
+        showgroup: !1
+    };
     $GP.intro = $("#intro");
     $GP.minifier = $GP.intro.find("#minifier");
     $GP.mini = $("#minify");
@@ -189,105 +189,96 @@ function setupGUI(config) {
     $GP.info_close.click(nodeNormal);
     $GP.info_close2.click(nodeNormal);
     $GP.form = $("#mainpanel").find("form");
+    
     $GP.search = new Search($GP.form.find("#search"));
     if (!config.features.search) {
-		$("#search").hide();
-	}
-	if (!config.features.groupSelectorAttribute) {
-		$("#attributeselect").hide();
-	}
+        $("#search").hide();
+    }
+    if (!config.features.groupSelectorAttribute) {
+        $("#attributeselect").hide();
+    }
     $GP.cluster = new Cluster($GP.form.find("#attributeselect"));
     config.GP=$GP;
     initSigma(config);
 }
 
 function configSigmaElements(config) {
-	$GP=config.GP;
+    $GP=config.GP;
     
     // Node hover behaviour
     if (config.features.hoverBehavior == "dim") {
-        var outTimeoutID;
-        var overTimeoutID;
+
         var greyColor = '#ccc';
-        sigInst.bind('overnodes', function(event) {
-        var dimIn = function(event) {
-            var nodes = event.content;
-            var neighbors = {};
-            sigInst.iterEdges(function(e){
-            if(nodes.indexOf(e.source)<0 && nodes.indexOf(e.target)<0){
-                if(!e.attr['grey']){
-                    e.attr['true_color'] = e.color;
-                    e.color = greyColor;
-                    e.attr['grey'] = 1;
+        sigInst.bind('overnodes',function(event){
+        var nodes = event.content;
+        var neighbors = {};
+        sigInst.iterEdges(function(e){
+        if(nodes.indexOf(e.source)<0 && nodes.indexOf(e.target)<0){
+            if(!e.attr['grey']){
+                e.attr['true_color'] = e.color;
+                e.color = greyColor;
+                e.attr['grey'] = 1;
+            }
+        }else{
+            e.color = e.attr['grey'] ? e.attr['true_color'] : e.color;
+            e.attr['grey'] = 0;
+
+            neighbors[e.source] = 1;
+            neighbors[e.target] = 1;
+        }
+        }).iterNodes(function(n){
+            if(!neighbors[n.id]){
+                if(!n.attr['grey']){
+                    n.attr['true_color'] = n.color;
+                    n.color = greyColor;
+                    n.attr['grey'] = 1;
                 }
             }else{
-                e.color = e.attr['grey'] ? e.attr['true_color'] : e.color;
-                e.attr['grey'] = 0;
-
-                neighbors[e.source] = 1;
-                neighbors[e.target] = 1;
-            }
-            }).iterNodes(function(n){
-                if (!neighbors[n.id]) {
-                    if (!n.attr['grey']) {
-                        n.attr['true_color'] = n.color;
-                        n.color = greyColor;
-                        n.attr['grey'] = 1;
-                     }
-                }else{
-                    n.color = n.attr['grey'] ? n.attr['true_color'] : n.color;
-                    n.attr['grey'] = 0;
-                }
-            }).draw(2,2,2);
-        };
-        window.clearTimeout(overTimeoutID);
-        window.clearTimeout(outTimeoutID);
-        overTimeoutID = window.setTimeout(function(){dimIn(event);}, 500);
-		}).bind('outnodes',function(){
-        var dimOut = function () {
-            sigInst.iterEdges(function(e){
-                e.color = e.attr['grey'] ? e.attr['true_color'] : e.color;
-                e.attr['grey'] = 0;
-            }).iterNodes(function(n){
                 n.color = n.attr['grey'] ? n.attr['true_color'] : n.color;
                 n.attr['grey'] = 0;
-            }).draw(2,2,2);
-        };
-        window.clearTimeout(outTimeoutID);
-        outTimeoutID = window.setTimeout(function(){dimOut();}, 500);
+            }
+        }).draw(2,2,2);
+        }).bind('outnodes',function(){
+        sigInst.iterEdges(function(e){
+            e.color = e.attr['grey'] ? e.attr['true_color'] : e.color;
+            e.attr['grey'] = 0;
+        }).iterNodes(function(n){
+            n.color = n.attr['grey'] ? n.attr['true_color'] : n.color;
+            n.attr['grey'] = 0;
+        }).draw(2,2,2);
         });
 
     } else if (config.features.hoverBehavior == "hide") {
 
-		sigInst.bind('overnodes',function(event){
-			var nodes = event.content;
-			var neighbors = {};
-		sigInst.iterEdges(function(e){
-			if(nodes.indexOf(e.source)>=0 || nodes.indexOf(e.target)>=0){
-		    	neighbors[e.source] = 1;
-		    	neighbors[e.target] = 1;
-		  	}
-		}).iterNodes(function(n){
-		  	if(!neighbors[n.id]){
-		    	n.hidden = 1;
-		  	}else{
-		    	n.hidden = 0;
-		  }
-		}).draw(2,2,2);
-		}).bind('outnodes',function(){
-		sigInst.iterEdges(function(e){
-		  	e.hidden = 0;
-		}).iterNodes(function(n){
-		  	n.hidden = 0;
-		}).draw(2,2,2);
-		});
+        sigInst.bind('overnodes',function(event){
+            var nodes = event.content;
+            var neighbors = {};
+        sigInst.iterEdges(function(e){
+            if(nodes.indexOf(e.source)>=0 || nodes.indexOf(e.target)>=0){
+                neighbors[e.source] = 1;
+                neighbors[e.target] = 1;
+            }
+        }).iterNodes(function(n){
+            if(!neighbors[n.id]){
+                n.hidden = 1;
+            }else{
+                n.hidden = 0;
+          }
+        }).draw(2,2,2);
+        }).bind('outnodes',function(){
+        sigInst.iterEdges(function(e){
+            e.hidden = 0;
+        }).iterNodes(function(n){
+            n.hidden = 0;
+        }).draw(2,2,2);
+        });
 
     }
     $GP.bg = $(sigInst._core.domElements.bg);
     $GP.bg2 = $(sigInst._core.domElements.bg2);
     var a = [],
         b,x=1;
-		for (b in sigInst.clusters) a.push('<div style="line-height:12px"><a href="#' + b + '"><div style="width:40px;height:12px;border:1px solid #fff;background:' + b + ';display:inline-block"></div> Group ' + (x++) + ' (' + sigInst.clusters[b].length + ' members)</a></div>');
+        for (b in sigInst.clusters) a.push('<div style="line-height:12px"><a href="#' + b + '"><div style="width:40px;height:12px;border:1px solid #fff;background:' + b + ';display:inline-block"></div> ' + (sigInst.clusterNames[b]) + ' (' + sigInst.clusters[b].length + ' members)</a></div>');
     //a.sort();
     $GP.cluster.content(a.join(""));
     b = {
@@ -300,12 +291,12 @@ function configSigmaElements(config) {
         var a = $(this),
             b = a.attr("rel");
         a.click(function () {
-			if (b == "center") {
-				sigInst.position(0,0,1).draw();
-			} else {
-		        var a = sigInst._core;
-	            sigInst.zoomTo(a.domElements.nodes.width / 2, a.domElements.nodes.height / 2, a.mousecaptor.ratio * ("in" == b ? 1.5 : 0.5));		
-			}
+            if (b == "center") {
+                sigInst.position(0,0,1).draw();
+            } else {
+                var a = sigInst._core;
+                sigInst.zoomTo(a.domElements.nodes.width / 2, a.domElements.nodes.height / 2, a.mousecaptor.ratio * ("in" == b ? 1.5 : 0.5));       
+            }
 
         })
     });
@@ -332,15 +323,18 @@ function configSigmaElements(config) {
         break;
     default:
         $GP.search.exactMatch = !0, $GP.search.search(a)
-		$GP.search.clean();
+        $GP.search.clean();
     }
 
 }
 
 function Search(a) {
     this.input = a.find("input[name=search]");
+
+    this.attrib = a.find("#dropdown");
     this.state = a.find(".state");
     this.results = a.find(".results");
+
     this.exactMatch = !1;
     this.lastSearch = "";
     this.searching = !1;
@@ -357,56 +351,80 @@ function Search(a) {
         var a = b.input.val();
         b.searching && a == b.lastSearch ? b.close() : (b.state.addClass("searching"), b.search(a))
     });
+    
     this.dom = a;
+    
     this.close = function () {
         this.state.removeClass("searching");
         this.results.hide();
         this.searching = !1;
-        this.input.val("");//SAH -- let's erase string when we close
+        this.input.val("");
         nodeNormal()
     };
+    
     this.clean = function () {
         this.results.empty().hide();
         this.state.removeClass("searching");
         this.input.val("");
     };
+
     this.search = function (a) {
         var b = !1,
             c = [],
             b = this.exactMatch ? ("^" + a + "$").toLowerCase() : a.toLowerCase(),
             g = RegExp(b);
+
+        // Determine the type of the variable for which we're searching 
+        var exampleValue;
+
+        var firstElem = createFirstElem();
+        if(isNaN(firstElem))
+            firstElem = String(firstElem);
+        var exampleNode = sigInst._core.graph.nodesIndex[firstElem];
+
+        if(exampleNode.attr){
+            exampleValue = exampleNode.attr.attributes[this.attrib.val()];
+        }
+
         this.exactMatch = !1;
         this.searching = !0;
         this.lastSearch = a;
         this.results.empty();
-        if (2 >= a.length) this.results.html("<i>You must search for a name with a minimum of 3 letters.</i>");
-        else {
-	        sigInst.iterNodes(function (a) {
-	            if (g.test(a.label.toLowerCase())) {
-	            	c.push({
-	                	id: a.id,
-	                	name: a.label
-	            	});
-	            } else if (config["search"] && config["search"]["fulltext"]) { //Check attributes for this node if fulltext is on
-	            	for (attr in a["attr"]["attributes"]) {
-	            		if (g.test((""+a["attr"]["attributes"][attr]).toLowerCase())) {
-					    	c.push({
-					        	id: a.id,
-					        	name: a.label
-					    	});
-					    	break;//Matched not need to check further
-					 	}
-					}
-	            }
-	        });
-            c.length ? (b = !0, nodeActive(c[0].id)) : b = showCluster(a);
-            a = ["<b>Search Results: </b>"];
-            if (1 < c.length) for (var d = 0, h = c.length; d < h; d++) a.push('<a href="#' + c[d].name + '" onclick="nodeActive(\'' + c[d].id + "')\">" + c[d].name + "</a>");
-            0 == c.length && !b && a.push("<i>No results found.</i>");
-            1 < a.length && this.results.html(a.join(""));
-           }
-        if(c.length!=1) this.results.show();
-        if(c.length==1) this.results.hide();   
+        
+        if(this.attrib.val() == "Phenotype Name"){
+            if (2 >= a.length) 
+                this.results.html("<i>You must search for a name with a minimum of 3 letters.</i>");
+            else {
+                sigInst.iterNodes(function (a) {
+                    g.test(a.label.toLowerCase()) && c.push({
+                        id: a.id,
+                        name: a.label
+                    })
+                });
+                c.length ? (b = !0, nodeActive(c[0].id)) : b = showCluster(a);
+                a = ["<b>Search Results: </b>"];
+                if (1 < c.length) 
+                    for (var d = 0, h = c.length; d < h; d++) 
+                        a.push('<a href="#' + c[d].name + '" onclick="nodeActive(\'' + c[d].id + "')\">" + c[d].name + "</a>");
+                0 == c.length && !b && a.push("<i>No results found.</i>");
+                1 < a.length && this.results.html(a.join(""));
+               }
+            if(c.length!=1) this.results.show();
+            if(c.length==1) this.results.hide();   
+        }
+
+        else if(isNaN(exampleValue)){
+            if (2 >= a.length)
+                this.results.html("<i>You must search for a value with a minimum of 3 letters.</i>");
+            else 
+                findNodesForAttributes(this.attrib.val(), a, !1);
+        }
+
+        else{
+            sliderValues = slider.getValue();
+            sliderValuesArray = sliderValues.split(",");
+            findNodesForAttributes(this.attrib.val(), sliderValuesArray[0], sliderValuesArray[1]);
+        }
     }
 }
 
@@ -457,15 +475,15 @@ function nodeNormal() {
 }
 
 function nodeActive(a) {
-
-	var groupByDirection=false;
-	if (config.informationPanel.groupByEdgeDirection && config.informationPanel.groupByEdgeDirection==true)	groupByDirection=true;
-	
+    var groupByDirection=false;
+    if (config.informationPanel.groupByEdgeDirection && config.informationPanel.groupByEdgeDirection==true) groupByDirection=true;
+    
     sigInst.neighbors = {};
     sigInst.detail = !0;
     var b = sigInst._core.graph.nodesIndex[a];
+
     showGroups(!1);
-	var outgoing={},incoming={},mutual={};//SAH
+    var outgoing={},incoming={},mutual={};//SAH
     sigInst.iterEdges(function (b) {
         b.attr.lineWidth = !1;
         b.hidden = !0;
@@ -475,8 +493,8 @@ function nodeActive(a) {
             colour: b.color
         };
         
-   	   if (a==b.source) outgoing[b.target]=n;		//SAH
-	   else if (a==b.target) incoming[b.source]=n;		//SAH
+       if (a==b.source) outgoing[b.target]=n;       //SAH
+       else if (a==b.target) incoming[b.source]=n;      //SAH
        if (a == b.source || a == b.target) sigInst.neighbors[a == b.target ? b.source : b.target] = n;
        b.hidden = !1, b.attr.color = "rgba(0, 0, 0, 1)";
     });
@@ -488,22 +506,22 @@ function nodeActive(a) {
     });
     
     if (groupByDirection) {
-		//SAH - Compute intersection for mutual and remove these from incoming/outgoing
-		for (e in outgoing) {
-			//name=outgoing[e];
-			if (e in incoming) {
-				mutual[e]=outgoing[e];
-				delete incoming[e];
-				delete outgoing[e];
-			}
-		}
+        //SAH - Compute intersection for mutual and remove these from incoming/outgoing
+        for (e in outgoing) {
+            //name=outgoing[e];
+            if (e in incoming) {
+                mutual[e]=outgoing[e];
+                delete incoming[e];
+                delete outgoing[e];
+            }
+        }
     }
     
     var createList=function(c) {
         var f = [];
-    	var e = [],
-      	 	 //c = sigInst.neighbors,
-       		 g;
+        var e = [],
+             //c = sigInst.neighbors,
+             g;
     for (g in c) {
         var d = sigInst._core.graph.nodesIndex[g];
         d.hidden = !1;
@@ -512,7 +530,7 @@ function nodeActive(a) {
         a != g && e.push({
             id: g,
             name: d.label,
-            group: (c[g].name)? ""+c[g].name:"",
+            group: (c[g].name)? c[g].name:"",
             colour: c[g].colour
         })
     }
@@ -524,44 +542,43 @@ function nodeActive(a) {
         return c != d ? c < d ? -1 : c > d ? 1 : 0 : e < f ? -1 : e > f ? 1 : 0
     });
     d = "";
-		for (g in e) {
-			c = e[g];
-			/*if (c.group != d) {
-				d = c.group;
-				f.push('<li class="cf" rel="' + c.color + '"><div class=""></div><div class="">' + d + "</div></li>");
-			}*/
-			f.push('<li class="membership"><a href="#' + c.name + '" onmouseover="sigInst._core.plotter.drawHoverNode(sigInst._core.graph.nodesIndex[\'' + c.id + '\'])\" onclick=\"nodeActive(\'' + c.id + '\')" onmouseout="sigInst.refresh()">' + c.name + "</a></li>");
-		}
-		return f;
-	}
-	
-	/*console.log("mutual:");
-	console.log(mutual);
-	console.log("incoming:");
-	console.log(incoming);
-	console.log("outgoing:");
-	console.log(outgoing);*/
-	
-	
-	var f=[];
-	
-	//console.log("neighbors:");
-	//console.log(sigInst.neighbors);
+        for (g in e) {
+            c = e[g];
+            /*if (c.group != d) {
+                d = c.group;
+                f.push('<li class="cf" rel="' + c.color + '"><div class=""></div><div class="">' + d + "</div></li>");
+            }*/
+            f.push('<li class="membership"><a href="#' + c.name + '" onmouseover="sigInst._core.plotter.drawHoverNode(sigInst._core.graph.nodesIndex[\'' + c.id + '\'])\" onclick=\"nodeActive(\'' + c.id + '\')" onmouseout="sigInst.refresh()">' + c.name + "</a></li>");
+        }
+        return f;
+    }
+    
+    /*console.log("mutual:");
+    console.log(mutual);
+    console.log("incoming:");
+    console.log(incoming);
+    console.log("outgoing:");
+    console.log(outgoing);*/
+    
+    var f=[];
+    
+    //console.log("neighbors:");
+    //console.log(sigInst.neighbors);
 
-	if (groupByDirection) {
-		size=Object.size(mutual);
-		f.push("<h2>Mututal (" + size + ")</h2>");
-		(size>0)? f=f.concat(createList(mutual)) : f.push("No mutual links<br>");
-		size=Object.size(incoming);
-		f.push("<h2>Incoming (" + size + ")</h2>");
-		(size>0)? f=f.concat(createList(incoming)) : f.push("No incoming links<br>");
-		size=Object.size(outgoing);
-		f.push("<h2>Outgoing (" + size + ")</h2>");
-		(size>0)? f=f.concat(createList(outgoing)) : f.push("No outgoing links<br>");
-	} else {
-		f=f.concat(createList(sigInst.neighbors));
-	}
-	//b is object of active node -- SAH
+    if (groupByDirection) {
+        size=Object.size(mutual);
+        f.push("<h2>Mututal (" + size + ")</h2>");
+        (size>0)? f=f.concat(createList(mutual)) : f.push("No mutual links<br>");
+        size=Object.size(incoming);
+        f.push("<h2>Incoming (" + size + ")</h2>");
+        (size>0)? f=f.concat(createList(incoming)) : f.push("No incoming links<br>");
+        size=Object.size(outgoing);
+        f.push("<h2>Outgoing (" + size + ")</h2>");
+        (size>0)? f=f.concat(createList(outgoing)) : f.push("No outgoing links<br>");
+    } else {
+        f=f.concat(createList(sigInst.neighbors));
+    }
+    //b is object of active node -- SAH
     b.hidden = !1;
     b.attr.color = b.color;
     b.attr.lineWidth = 6;
@@ -573,30 +590,30 @@ function nodeActive(a) {
         var a = $(this),
             b = a.attr("rel");
     });
+    
     f = b.attr;
+
     if (f.attributes) {
-  		var image_attribute = false;
-  		if (config.informationPanel.imageAttribute) {
-  			image_attribute=config.informationPanel.imageAttribute;
-  		}
+        var image_attribute = false;
+        if (config.informationPanel.imageAttribute) {
+            image_attribute=config.informationPanel.imageAttribute;
+        }
         e = [];
         temp_array = [];
         g = 0;
         for (var attr in f.attributes) {
-            var d = f.attributes[attr],
-                h = "";
-			if (attr!=image_attribute) {
+            var d = f.attributes[attr], h = "";
+
+            if (attr!=image_attribute) {
                 h = '<span><strong>' + attr + ':</strong> ' + d + '</span><br/>'
-			}
-            //temp_array.push(f.attributes[g].attr);
+            }
             e.push(h)
         }
 
         if (image_attribute) {
-        	//image_index = jQuery.inArray(image_attribute, temp_array);
-        	$GP.info_name.html("<div><img src=" + f.attributes[image_attribute] + " style=\"vertical-align:middle\" /> <span onmouseover=\"sigInst._core.plotter.drawHoverNode(sigInst._core.graph.nodesIndex['" + b.id + '\'])" onmouseout="sigInst.refresh()">' + b.label + "</span></div>");
+            $GP.info_name.html("<div><img src=" + f.attributes[image_attribute] + " style=\"vertical-align:middle\" /> <span onmouseover=\"sigInst._core.plotter.drawHoverNode(sigInst._core.graph.nodesIndex['" + b.id + '\'])" onmouseout="sigInst.refresh()">' + b.label + "</span></div>");
         } else {
-        	$GP.info_name.html("<div><span onmouseover=\"sigInst._core.plotter.drawHoverNode(sigInst._core.graph.nodesIndex['" + b.id + '\'])" onmouseout="sigInst.refresh()">' + b.label + "</span></div>");
+            $GP.info_name.html("<div><span onmouseover=\"sigInst._core.plotter.drawHoverNode(sigInst._core.graph.nodesIndex['" + b.id + '\'])" onmouseout="sigInst.refresh()">' + b.label + "</span></div>");
         }
         // Image field for attribute pane
         $GP.info_data.html(e.join("<br/>"))
@@ -604,14 +621,15 @@ function nodeActive(a) {
     $GP.info_data.show();
     $GP.info_p.html("Connections:");
     $GP.info.animate({width:'show'},350);
-	$GP.info_donnees.hide();
-	$GP.info_donnees.show();
+    $GP.info_donnees.hide();
+    $GP.info_donnees.show();
     sigInst.active = a;
     window.location.hash = b.label;
 }
 
 function showCluster(a) {
     var b = sigInst.clusters[a];
+ 
     if (b && 0 < b.length) {
         showGroups(!1);
         sigInst.detail = !0;
@@ -630,16 +648,217 @@ function showCluster(a) {
         }
         sigInst.clusters[a] = e;
         sigInst.draw(2, 2, 2, 2);
-        $GP.info_name.html("<b>" + a + "</b>");
+        $GP.info_name.html("<b>" + sigInst.clusterNames[a] + "</b>");
         $GP.info_data.hide();
         $GP.info_p.html("Group Members:");
         $GP.info_link.find("ul").html(f.join(""));
         $GP.info.animate({width:'show'},350);
         $GP.search.clean();
-		$GP.cluster.hide();
+        $GP.cluster.hide();
         return !0
     }
     return !1
 }
 
+
+// Will take in the input as what the user has selected (i.e. a SNP id or a Modularity class)
+function findNodesForAttributes(attributeName, minValue, maxValue){
+    // Output list of nodes that match our values for our attribute
+    var outputList = [];
+    var attributeResults = new Set();
+    //var attributeResults = [];
+
+    // If we're searching for a categorical variable
+    if(isNaN(minValue)){
+        exactMatch = !1;
+        
+        var b = (minValue).toLowerCase();
+        var g = RegExp(b);
+
+        sigInst.iterNodes(function (a) {
+            var currentValue = a.attr.attributes[attributeName];
+            if(currentValue.charAt(0) == '[' || currentValue.charAt(0) == '{'){
+                // Get rid of brackets around the list of SNPs for this node and split the list-string of SNPs into an array
+                dStripped = currentValue.substring(1, currentValue.length-1);
+                dSplit = dStripped.split(",");
+                for(i = 0; i < dSplit.length; i++){
+                    // Get each SNP (ignoring the quotation marks)
+                    elem = dSplit[i].trim()
+                    elemStripped = dSplit[i].substring(1, dSplit[i].length-1);
+
+                    g.test(elem.toLowerCase()) && outputList.push(a.id) && attributeResults.add(elem);
+                }
+            } else {
+                g.test(currentValue.toLowerCase()) && outputList.push(a.id) && attributeResults.add(currentValue);
+            }
+        });
+
+        a = ["<b>Search Results (first 10): </b>"];
+        if(attributeResults.size > 0){
+            h = attributeResults.size < 10 ? attributeResults.size : 10;
+
+            attributeResults = attributeResults.values();
+            for (var d = 0; d < h; d++){ 
+                var currentElem = attributeResults.next().value;
+                a.push('<a href="#' + currentElem + '" onclick="findNodesForAttributes(\'' + attributeName + "'," + currentElem + "," + !1 + "," + results + ")\">" + currentElem + "</a>");
+            }
+        } else
+            a.push("<i>No results found.</i>");
+
+        var results = $(".results");
+        results.html(a.join(""));
+        results.show();
+    }
+
+    // Otherwise, we're doing our continuous variable search
+    else {
+        sigInst.iterNodes(function (a) {
+            var currentValue = Number(a.attr.attributes[attributeName]);
+            // Otherwise, we have a minimum and maximum value to consider for our search    
+            if(currentValue >= Number(minValue) && currentValue <= Number(maxValue))
+                outputList.push(a.id);
+        });
+    }
+
+    showClusterForAttribute(attributeName, outputList);
+}
+
+// Show cluster given the attribute "a" that you're looking for
+function showClusterForAttribute(a, b) {
+    if (b && 0 < b.length) {
+        showGroups(!1);
+        sigInst.detail = !0;
+        b.sort();
+        sigInst.iterEdges(function (a) {
+            a.hidden = !1;
+            a.attr.lineWidth = !1;
+            a.attr.color = !1
+        });
+        sigInst.iterNodes(function (a) {
+            a.hidden = !0
+        });
+        for (var f = [], e = [], c = 0, g = b.length; c < g; c++) {
+            var d = sigInst._core.graph.nodesIndex[b[c]];
+            !0 == d.hidden && (e.push(b[c]), d.hidden = !1, d.attr.lineWidth = !1, d.attr.color = d.color, f.push('<li class="membership"><a href="#'+d.label+'" onmouseover="sigInst._core.plotter.drawHoverNode(sigInst._core.graph.nodesIndex[\'' + d.id + "'])\" onclick=\"nodeActive('" + d.id + '\')" onmouseout="sigInst.refresh()">' + d.label + "</a></li>"))
+        }
+        sigInst.clusters[a] = e;
+        sigInst.draw(2, 2, 2, 2);
+        // The next line needs to be changed so that we have a good description of the attribute we're searching for
+        // $GP.info_name.html("<b>" + sigInst.clusterNames[a] + "</b>");
+        $GP.info_name.html("<b>" + a + "</b>");
+        $GP.info_data.hide();
+        $GP.info_p.html("Group Members:");
+        $GP.info_link.find("ul").html(f.join(""));
+        $GP.info.animate({width:'show'},350);
+        //$GP.search.clean();
+        $GP.cluster.hide();
+        return !0
+    }
+    return !1
+}
+
+
+
+
+function populateSearch() { 
+    var firstElem = createFirstElem();
+    if(isNaN(firstElem))
+        firstElem = String(firstElem);
+    var b = sigInst._core.graph.nodesIndex[firstElem];
+    var f = b.attr;
+    
+    if (f.attributes) {
+        $("#dropdown").append(new Option("Phenotype Name", "Phenotype Name"));
+
+        for (var attr in f.attributes)
+            $("#dropdown").append(new Option(attr, attr));
+    }
+}
+
+
+function addExamplesForSearch(e){
+    var firstElem = createFirstElem();
+    if(isNaN(firstElem))
+        firstElem = String(firstElem);
+    var b = sigInst._core.graph.nodesIndex[firstElem];
+    
+    var f = b.attr;
+
+    $("#containerforslider").hide();
+    $("#textbox").hide();
+
+    if(e.target.value == "Phenotype Name"){
+        $("#textbox").val("e.g. diabetes");
+        $("#textbox").show();
+    }
+
+    else{
+        var exampleValue = f.attributes[e.target.value];
+                  
+        // If the attribute we're searching for is a number, we need to find the min and max so that
+        //   we can set the range of our slider input
+        if(Number(exampleValue)){
+            //we'll have to go through iterNodes to find all possible values for this attribute
+            smallestValue = 100000
+            largestValue = -1
+            sigInst.iterNodes(function (a) {
+                var d = Number(a.attr.attributes[e.target.value]);
+                if(d < smallestValue)
+                    smallestValue = d
+                if(d > largestValue)
+                    largestValue = d
+            });
+
+            smallestValue = Math.floor(smallestValue* 100)/100;
+            largestValue = Math.ceil(largestValue* 100)/100;
+
+            slider.destroy();
+            $("#containerforslider").show();
+
+            var stepSize;
+            if(Number.isInteger(largestValue) && largestValue != 1 && largestValue <= 100){
+                stepSize = 1;
+            } else {
+                // Note that we divide by 101 instead of 100, to ensure appropriate steps for the slider.
+                //  In Firefox, if the steps are at 100, sometimes the value of slider will go down to
+                //  the next line if 100 is used."
+                stepSize = (largestValue - smallestValue)/101;
+            }
+            
+            slider = new rSlider({target: '#slider', 
+                                values: {min: smallestValue, max: largestValue},
+                                step: stepSize,
+                                range: true, 
+                                scale: false, 
+                                labels: false});
+        }
+
+        // Otherwise, the attribute we're searching by is a String, and we need to use the textbox input
+        // If the variable isn't a number, then we give an example                
+        else {
+            // If we're searching by SNP, we need to give a single SNP example
+            if(exampleValue.charAt(0) == '[' || exampleValue.charAt(0) == '{'){
+                dStripped = exampleValue.substring(1, exampleValue.length-1);
+                dSplit = dStripped.split(",");
+                elem = dSplit[0].trim()
+                $("#textbox").val("e.g. " + elem);
+            }
+
+            else
+                $("#textbox").val("e.g. " + exampleValue);
+
+            $("#textbox").show();
+        }
+    }
+}
+
+function createFirstElem(){
+    var firstElem;
+    for(elem in sigInst._core.graph.nodesIndex){
+        firstElem = elem;
+        break;
+    }
+
+    return firstElem;
+}
 
