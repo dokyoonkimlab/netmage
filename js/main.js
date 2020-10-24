@@ -90,6 +90,7 @@ function initSigma(config) {
 
     dataReady = function() {//This is called as soon as data is loaded
 		a.clusters = {};
+    a.clusterNames = {};
 
 		a.iterNodes(
 			function (b) { //This is where we populate the array used for the group select box
@@ -99,6 +100,8 @@ function initSigma(config) {
 				// alert(b.x);
 				a.clusters[b.color] || (a.clusters[b.color] = []);
 				a.clusters[b.color].push(b.id);//SAH: push id not label
+        a.clusterNames[b.color] || (sigInst.clusterNames[b.color] = []);
+        a.clusterNames[b.color]=b.attr.attributes["Category"];
 			}
 		
 		);
@@ -109,6 +112,7 @@ function initSigma(config) {
 
 		a.draw();
 		configSigmaElements(config);
+    populateSearch();
 	}
 
     if (data.indexOf("gexf")>0 || data.indexOf("xml")>0)
@@ -206,55 +210,45 @@ function configSigmaElements(config) {
     
     // Node hover behaviour
     if (config.features.hoverBehavior == "dim") {
-        var outTimeoutID;
-        var overTimeoutID;
+
         var greyColor = '#ccc';
-        sigInst.bind('overnodes', function(event) {
-        var dimIn = function(event) {
-            var nodes = event.content;
-            var neighbors = {};
-            sigInst.iterEdges(function(e){
-            if(nodes.indexOf(e.source)<0 && nodes.indexOf(e.target)<0){
-                if(!e.attr['grey']){
-                    e.attr['true_color'] = e.color;
-                    e.color = greyColor;
-                    e.attr['grey'] = 1;
+        sigInst.bind('overnodes',function(event){
+        var nodes = event.content;
+        var neighbors = {};
+        sigInst.iterEdges(function(e){
+        if(nodes.indexOf(e.source)<0 && nodes.indexOf(e.target)<0){
+            if(!e.attr['grey']){
+                e.attr['true_color'] = e.color;
+                e.color = greyColor;
+                e.attr['grey'] = 1;
+            }
+        }else{
+            e.color = e.attr['grey'] ? e.attr['true_color'] : e.color;
+            e.attr['grey'] = 0;
+
+            neighbors[e.source] = 1;
+            neighbors[e.target] = 1;
+        }
+        }).iterNodes(function(n){
+            if(!neighbors[n.id]){
+                if(!n.attr['grey']){
+                    n.attr['true_color'] = n.color;
+                    n.color = greyColor;
+                    n.attr['grey'] = 1;
                 }
             }else{
-                e.color = e.attr['grey'] ? e.attr['true_color'] : e.color;
-                e.attr['grey'] = 0;
-
-                neighbors[e.source] = 1;
-                neighbors[e.target] = 1;
-            }
-            }).iterNodes(function(n){
-                if (!neighbors[n.id]) {
-                    if (!n.attr['grey']) {
-                        n.attr['true_color'] = n.color;
-                        n.color = greyColor;
-                        n.attr['grey'] = 1;
-                     }
-                }else{
-                    n.color = n.attr['grey'] ? n.attr['true_color'] : n.color;
-                    n.attr['grey'] = 0;
-                }
-            }).draw(2,2,2);
-        };
-        window.clearTimeout(overTimeoutID);
-        window.clearTimeout(outTimeoutID);
-        overTimeoutID = window.setTimeout(function(){dimIn(event);}, 500);
-		}).bind('outnodes',function(){
-        var dimOut = function () {
-            sigInst.iterEdges(function(e){
-                e.color = e.attr['grey'] ? e.attr['true_color'] : e.color;
-                e.attr['grey'] = 0;
-            }).iterNodes(function(n){
                 n.color = n.attr['grey'] ? n.attr['true_color'] : n.color;
                 n.attr['grey'] = 0;
-            }).draw(2,2,2);
-        };
-        window.clearTimeout(outTimeoutID);
-        outTimeoutID = window.setTimeout(function(){dimOut();}, 500);
+            }
+        }).draw(2,2,2);
+        }).bind('outnodes',function(){
+        sigInst.iterEdges(function(e){
+            e.color = e.attr['grey'] ? e.attr['true_color'] : e.color;
+            e.attr['grey'] = 0;
+        }).iterNodes(function(n){
+            n.color = n.attr['grey'] ? n.attr['true_color'] : n.color;
+            n.attr['grey'] = 0;
+        }).draw(2,2,2);
         });
 
     } else if (config.features.hoverBehavior == "hide") {
@@ -287,7 +281,7 @@ function configSigmaElements(config) {
     $GP.bg2 = $(sigInst._core.domElements.bg2);
     var a = [],
         b,x=1;
-		for (b in sigInst.clusters) a.push('<div style="line-height:12px"><a href="#' + b + '"><div style="width:40px;height:12px;border:1px solid #fff;background:' + b + ';display:inline-block"></div> Group ' + (x++) + ' (' + sigInst.clusters[b].length + ' members)</a></div>');
+    for (b in sigInst.clusters) a.push('<div style="line-height:12px"><a href="#' + b + '"><div style="width:40px;height:12px;border:1px solid #fff;background:' + b + ';display:inline-block"></div> ' + (sigInst.clusterNames[b]) + ' (' + sigInst.clusters[b].length + ' members)</a></div>');
     //a.sort();
     $GP.cluster.content(a.join(""));
     b = {
@@ -339,6 +333,7 @@ function configSigmaElements(config) {
 
 function Search(a) {
     this.input = a.find("input[name=search]");
+    this.attrib = a.find("#dropdown");
     this.state = a.find(".state");
     this.results = a.find(".results");
     this.exactMatch = !1;
@@ -375,38 +370,53 @@ function Search(a) {
             c = [],
             b = this.exactMatch ? ("^" + a + "$").toLowerCase() : a.toLowerCase(),
             g = RegExp(b);
+        // Determine the type of the variable for which we're searching
+        var exampleValue;
+        var exampleNode = getFirstNode();
+
+        if(exampleNode.attr){
+            exampleValue = exampleNode.attr.attributes[this.attrib.val()];
+        }
+
         this.exactMatch = !1;
         this.searching = !0;
         this.lastSearch = a;
         this.results.empty();
-        if (2 >= a.length) this.results.html("<i>You must search for a name with a minimum of 3 letters.</i>");
-        else {
-	        sigInst.iterNodes(function (a) {
-	            if (g.test(a.label.toLowerCase())) {
-	            	c.push({
-	                	id: a.id,
-	                	name: a.label
-	            	});
-	            } else if (config["search"] && config["search"]["fulltext"]) { //Check attributes for this node if fulltext is on
-	            	for (attr in a["attr"]["attributes"]) {
-	            		if (g.test((""+a["attr"]["attributes"][attr]).toLowerCase())) {
-					    	c.push({
-					        	id: a.id,
-					        	name: a.label
-					    	});
-					    	break;//Matched not need to check further
-					 	}
-					}
-	            }
-	        });
-            c.length ? (b = !0, nodeActive(c[0].id)) : b = showCluster(a);
-            a = ["<b>Search Results: </b>"];
-            if (1 < c.length) for (var d = 0, h = c.length; d < h; d++) a.push('<a href="#' + c[d].name + '" onclick="nodeActive(\'' + c[d].id + "')\">" + c[d].name + "</a>");
-            0 == c.length && !b && a.push("<i>No results found.</i>");
-            1 < a.length && this.results.html(a.join(""));
-           }
-        if(c.length!=1) this.results.show();
-        if(c.length==1) this.results.hide();   
+
+        if(this.attrib.val() == "Phenotype Name"){
+            if (2 >= a.length)
+                this.results.html("<i>You must search for a name with a minimum of 3 letters.</i>");
+            else {
+                sigInst.iterNodes(function (a) {
+                    g.test(a.label.toLowerCase()) && c.push({
+                        id: a.id,
+                        name: a.label
+                    })
+                });
+                c.length ? (b = !0, nodeActive(c[0].id)) : b = showCluster(a);
+                a = ["<b>Search Results: </b>"];
+                if (1 < c.length)
+                    for (var d = 0, h = c.length; d < h; d++)
+                        a.push('<a href="#' + c[d].name + '" onclick="nodeActive(\'' + c[d].id + "')\">" + c[d].name + "</a>");
+                0 == c.length && !b && a.push("<i>No results found.</i>");
+                1 < a.length && this.results.html(a.join(""));
+               }
+            if(c.length!=1) this.results.show();
+            if(c.length==1) this.results.hide();
+        }
+
+        else if(isNaN(exampleValue)){
+            if (2 >= a.length)
+                this.results.html("<i>You must search for a value with a minimum of 3 letters.</i>");
+            else
+                findNodesForAttributes(this.attrib.val(), a, !1);
+        }
+
+        else{
+            sliderValues = slider.getValue();
+            sliderValuesArray = sliderValues.split(",");
+            findNodesForAttributes(this.attrib.val(), sliderValuesArray[0], sliderValuesArray[1]);
+        }
     }
 }
 
@@ -512,7 +522,7 @@ function nodeActive(a) {
         a != g && e.push({
             id: g,
             name: d.label,
-            group: (c[g].name)? ""+c[g].name:"",
+            group: (c[g].name)? c[g].name:"",
             colour: c[g].colour
         })
     }
@@ -604,8 +614,8 @@ function nodeActive(a) {
     $GP.info_data.show();
     $GP.info_p.html("Connections:");
     $GP.info.animate({width:'show'},350);
-	$GP.info_donnees.hide();
-	$GP.info_donnees.show();
+    $GP.info_donnees.hide();
+    $GP.info_donnees.show();
     sigInst.active = a;
     window.location.hash = b.label;
 }
@@ -630,16 +640,204 @@ function showCluster(a) {
         }
         sigInst.clusters[a] = e;
         sigInst.draw(2, 2, 2, 2);
-        $GP.info_name.html("<b>" + a + "</b>");
+        $GP.info_name.html("<b>" + sigInst.clusterNames[a] + "</b>");
         $GP.info_data.hide();
         $GP.info_p.html("Group Members:");
         $GP.info_link.find("ul").html(f.join(""));
         $GP.info.animate({width:'show'},350);
         $GP.search.clean();
-		$GP.cluster.hide();
+        $GP.cluster.hide();
         return !0
     }
     return !1
 }
 
+
+// Will take in the input as what the user has selected (i.e. a SNP id or a Modularity class)
+function findNodesForAttributes(attributeName, minValue, maxValue){
+    // Output list of nodes that match our values for our attribute
+    var outputList = [];
+    var attributeResults = new Set();
+    //var attributeResults = [];
+
+    // If we're searching for a categorical variable
+    if(isNaN(minValue)){
+        exactMatch = !1;
+
+        var b = (minValue).toLowerCase();
+        var g = RegExp(b);
+
+        sigInst.iterNodes(function (a) {
+            var currentValue = a.attr.attributes[attributeName];
+            if(currentValue.charAt(0) == '[' || currentValue.charAt(0) == '{'){
+                // Get rid of brackets around the list of SNPs for this node and split the list-string of SNPs into an array
+                dStripped = currentValue.substring(1, currentValue.length-1);
+                dSplit = dStripped.split(",");
+                for(i = 0; i < dSplit.length; i++){
+                    // Get each SNP (ignoring the quotation marks)
+                    elem = dSplit[i].trim()
+                    elemStripped = dSplit[i].substring(1, dSplit[i].length-1);
+
+                    g.test(elem.toLowerCase()) && outputList.push(a.id) && attributeResults.add(elem);
+                }
+            } else {
+                g.test(currentValue.toLowerCase()) && outputList.push(a.id) && attributeResults.add(currentValue);
+            }
+        });
+
+        a = ["<b>Search Results (first 10): </b>"];
+        if(attributeResults.size > 0){
+            h = attributeResults.size < 10 ? attributeResults.size : 10;
+
+            attributeResults = attributeResults.values();
+            for (var d = 0; d < h; d++){
+                var currentElem = attributeResults.next().value;
+                a.push('<a href="#' + currentElem + '" onclick="findNodesForAttributes(\'' + attributeName + "'," + currentElem + "," + !1 + "," + results + ")\">" + currentElem + "</a>");
+            }
+        } else
+            a.push("<i>No results found.</i>");
+
+        var results = $(".results");
+        results.html(a.join(""));
+        results.show();
+    }
+
+    // Otherwise, we're doing our continuous variable search
+    else {
+        sigInst.iterNodes(function (a) {
+            var currentValue = Number(a.attr.attributes[attributeName]);
+            // Otherwise, we have a minimum and maximum value to consider for our search
+            if(currentValue >= Number(minValue) && currentValue <= Number(maxValue))
+                outputList.push(a.id);
+        });
+    }
+
+    showClusterForAttribute(attributeName, outputList);
+}
+
+// Show cluster given the attribute "a" that you're looking for
+function showClusterForAttribute(a, b) {
+    if (b && 0 < b.length) {
+        showGroups(!1);
+        sigInst.detail = !0;
+        b.sort();
+        sigInst.iterEdges(function (a) {
+            a.hidden = !1;
+            a.attr.lineWidth = !1;
+            a.attr.color = !1
+        });
+        sigInst.iterNodes(function (a) {
+            a.hidden = !0
+        });
+        for (var f = [], e = [], c = 0, g = b.length; c < g; c++) {
+            var d = sigInst._core.graph.nodesIndex[b[c]];
+            !0 == d.hidden && (e.push(b[c]), d.hidden = !1, d.attr.lineWidth = !1, d.attr.color = d.color, f.push('<li class="membership"><a href="#'+d.label+'" onmouseover="sigInst._core.plotter.drawHoverNode(sigInst._core.graph.nodesIndex[\'' + d.id + "'])\" onclick=\"nodeActive('" + d.id + '\')" onmouseout="sigInst.refresh()">' + d.label + "</a></li>"))
+        }
+        sigInst.clusters[a] = e;
+        sigInst.draw(2, 2, 2, 2);
+        // The next line needs to be changed so that we have a good description of the attribute we're searching for
+        // $GP.info_name.html("<b>" + sigInst.clusterNames[a] + "</b>");
+        $GP.info_name.html("<b>" + a + "</b>");
+        $GP.info_data.hide();
+        $GP.info_p.html("Group Members:");
+        $GP.info_link.find("ul").html(f.join(""));
+        $GP.info.animate({width:'show'},350);
+        //$GP.search.clean();
+        $GP.cluster.hide();
+        return !0
+    }
+    return !1
+}
+
+
+
+
+function populateSearch() {
+    var f = getFirstNode().attr;
+
+    if (f.attributes) {
+        $("#dropdown").append(new Option("Phenotype Name", "Phenotype Name"));
+
+        for (var attr in f.attributes)
+            $("#dropdown").append(new Option(attr, attr));
+    }
+}
+
+
+function addExamplesForSearch(e){
+    var f = getFirstNode().attr;
+
+    $("#containerforslider").hide();
+    $("#textbox").hide();
+
+    if(e.target.value == "Phenotype Name"){
+        $("#textbox").val("e.g. diabetes");
+        $("#textbox").show();
+    }
+
+    else{
+        var exampleValue = f.attributes[e.target.value];
+
+        // If the attribute we're searching for is a number, we need to find the min and max so that
+        //   we can set the range of our slider input
+        if(Number(exampleValue)){
+            //we'll have to go through iterNodes to find all possible values for this attribute
+            smallestValue = 100000
+            largestValue = -1
+            sigInst.iterNodes(function (a) {
+                var d = Number(a.attr.attributes[e.target.value]);
+                if(d < smallestValue)
+                    smallestValue = d
+                if(d > largestValue)
+                    largestValue = d
+            });
+
+            smallestValue = Math.floor(smallestValue* 100)/100;
+            largestValue = Math.ceil(largestValue* 100)/100;
+
+            slider.destroy();
+            $("#containerforslider").show();
+
+            var stepSize;
+            if(Number.isInteger(largestValue) && largestValue != 1 && largestValue <= 100){
+                stepSize = 1;
+            } else {
+                // Note that we divide by 101 instead of 100, to ensure appropriate steps for the slider.
+                //  In Firefox, if the steps are at 100, sometimes the value of slider will go down to
+                //  the next line if 100 is used."
+                stepSize = (largestValue - smallestValue)/101;
+            }
+
+            slider = new rSlider({target: '#slider',
+                                values: {min: smallestValue, max: largestValue},
+                                step: stepSize,
+                                range: true,
+                                scale: false,
+                                labels: false});
+        }
+
+        // Otherwise, the attribute we're searching by is a String, and we need to use the textbox input
+        // If the variable isn't a number, then we give an example
+        else {
+            // If we're searching by SNP, we need to give a single SNP example
+            if(exampleValue.charAt(0) == '[' || exampleValue.charAt(0) == '{'){
+                dStripped = exampleValue.substring(1, exampleValue.length-1);
+                dSplit = dStripped.split(",");
+                elem = dSplit[0].trim()
+                $("#textbox").val("e.g. " + elem);
+            }
+
+            else
+                $("#textbox").val("e.g. " + exampleValue);
+
+            $("#textbox").show();
+        }
+    }
+}
+
+function getFirstNode(){
+    for(elem in sigInst._core.graph.nodesIndex){
+        return(sigInst._core.graph.nodesIndex[elem]);
+    }
+}
 

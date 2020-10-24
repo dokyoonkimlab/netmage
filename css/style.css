@@ -283,17 +283,16 @@ color: #000;
 }
 
 #search .state {
-width: 14px;
-height: 14px;
-background-image: url('../images/sprite.png');
-float: right;
-margin-top: 6px;
-cursor: pointer;
-background-position: -131px -13px;
 }
 
 #search .state.searching {
-background-position: -11px -13px;
+background-position: -12px -14px;
+width: 18px;
+height: 18px;
+background-image: url('../images/sprite.png');
+margin-top: 6px;
+color:transparent;
+cursor: pointer;
 }
 
 #search .results {
