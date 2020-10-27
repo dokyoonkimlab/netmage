@@ -20,9 +20,9 @@ parser.add_argument('--input-data', dest= 'inputdata', required=True, metavar='p
 parser.add_argument('--edgemap-output', dest='edgemapout', default = "", metavar='path to edge map output file (csv)', help='filepath for edge map output (csv)')
 parser.add_argument('--nodemap-input', dest='nodemapin', default = None, metavar='path to node map input file (csv)', help='filepath for node map input (csv)')
 parser.add_argument('--nodemap-output', dest='nodemapout', default = "", metavar='path to node mapp output file (csv)', help='filepath for node map output (csv)')
-parser.add_argument('--maf-threshold', dest='mafthresh', default=0.01, metavar = 'threshold for MAF filtration', help='threshold for minor allele frequency filtration')
-parser.add_argument('--casecount-threshold', dest='ccthresh', default=200, metavar = 'threshold for case count filtration', help='threshold for case count filtration')
-parser.add_argument('--pvalue-threshold', dest='pvalthresh', default="1e-8", metavar = 'threshold for p-value', help='threshold for significance of association between SNP and phenotype')
+parser.add_argument('--maf-threshold', dest='mafthresh', metavar = 'threshold for MAF filtration', help='threshold for minor allele frequency filtration')
+parser.add_argument('--casecount-threshold', dest='ccthresh', metavar = 'threshold for case count filtration', help='threshold for case count filtration')
+parser.add_argument('--pvalue-threshold', dest='pvalthresh', metavar = 'threshold for p-value', help='threshold for significance of association between SNP and phenotype')
 parser.add_argument('--phenotype-name', dest='phenotypename', metavar = 'name of variable for phenotype ID', help='name of variable corresponding to phenotype ID')
 parser.add_argument('--snp-name', dest='snpname', required=True, metavar = 'name of variable for SNP ID', help='name of variable corresponding to SNP ID')
 parser.add_argument('--maf-name', dest='mafname', metavar = 'MAF variable name', help='name of variable corresponding to minor allele frequency')
@@ -93,7 +93,6 @@ with open(os.path.join(directoryPath, firstFileName), 'r') as firstFile:
 			pValueColNumber = i
 		elif(firstLineAsArray[i] == snpColName):
 			snpColNumber = i
-firstFile.close()
 
 # We need a column corresponding to snp name in our data. Force an exit if it can't be found
 if(snpColNumber == None):
@@ -104,15 +103,15 @@ if(nodeMapInputPath != None and phenotypeColNumber == None):
 
 # Given a line of data, indices for different variables, and threshold values, check if the line passes these thresholds
 def linePassesFilter(line, mafColNumber, mafFilter, ccColNumber, ccFilter, pvalColNumber, pvalFilter):
-	# If there is a line corresponding to case count, check if it passes input filter
+	# If there is a line corresponding to case count, check if it passes input filter (should be at least the threshold)
 	if(ccColNumber != None and ccFilter != None):
 		if(float(line[ccColNumber]) < float(ccFilter)):
 			return False
-	# If there is a line corresponding to minor allele frequency, check if it passes input filter
+	# If there is a line corresponding to minor allele frequency, check if it passes input filter (should be at least the threshold)
 	if(mafColNumber != None and mafFilter != None):
 		if(float(line[mafColNumber]) < float(mafFilter)):
 			return False
-	# If there is a line corresponding to p-value, check if it passes input filter
+	# If there is a line corresponding to p-value, check if it passes input filter (should be at most the threshold)
 	if(pvalColNumber != None and pvalFilter != None):
 		if(float(line[pvalColNumber]) > float(pvalFilter)):
 			return False
@@ -168,12 +167,10 @@ for filename in os.listdir(directoryPath):
 		if(len(snpsForThisPhenotypeList) > 0):
 			# List is used for the node map to present a sorted list of nodes
 			# Sort the list by p-value (i.e., by the second element of each tuple)
-			snpsForThisPhenotypeList.sort(key = lambda x: float(x[1]), reverse = True)
-			snpsForThisPhenotypeList.reverse()
+			snpsForThisPhenotypeList.sort(key = lambda x: float(x[1]), reverse = False)
 			# Get a list of the now sorted SNP IDs
 			snpNamesSorted = [i[0] for i in snpsForThisPhenotypeList]
 			phenotypeSnpMap_sorted[phenotype] = snpNamesSorted
-	f.close()
 
 print("Finished identifying phenotype to SNP mappings.")
 
@@ -238,9 +235,7 @@ if(nodeMapOutputPath != ""):
 							nodeMapOutput.writerow(row)
 
 					print("Processed phenotype " + currentPhenotype + " for node map")
-			inf.close()
 
-	outf.close()
 	print("Finished creating node map.")
 
 
@@ -249,36 +244,34 @@ if(edgeMapOutputPath != ""):
 	print("Creating edge map...")
 
 	# Write to an output file that will include all pairs of phenotypes and their shared SNPs
-	edgeMapOutput = open(edgeMapOutputPath, "a")
-	edgeMapOutput.write("Source\tTarget\tWeight\tlistOfSharedSNPs\n")
-	snpPairsAlreadySeen = set()
+	with open(edgeMapOutputPath, "a") as edgeMapOutput:
+		edgeMapOutput.write("Source\tTarget\tWeight\tlistOfSharedSNPs\n")
+		snpPairsAlreadySeen = set()
 
-	# Do a nested for loop that will get the intersection of our lists for each pair of nodes
-	i = 0
-	for key1, value1 in phenotypeSnpMap_unsorted.items():
-		i = i+1
-		for key2, value2 in phenotypeSnpMap_unsorted.items():
-			# If we've already seen 
-			snpPairV1 = key1+"_"+key2
-			snpPairV2 = key2+"_"+key1
+		# Do a nested for loop that will get the intersection of our lists for each pair of nodes
+		i = 0
+		for key1, value1 in phenotypeSnpMap_unsorted.items():
+			i = i+1
+			for key2, value2 in phenotypeSnpMap_unsorted.items():
+				# If we've already seen 
+				snpPairV1 = key1+"_"+key2
+				snpPairV2 = key2+"_"+key1
 
-			if((key1 != key2) and (snpPairV1 not in snpPairsAlreadySeen) and (snpPairV2 not in snpPairsAlreadySeen)):
-				snpPairsAlreadySeen.add(snpPairV1)
-				snpPairsAlreadySeen.add(snpPairV2)
+				if((key1 != key2) and (snpPairV1 not in snpPairsAlreadySeen) and (snpPairV2 not in snpPairsAlreadySeen)):
+					snpPairsAlreadySeen.add(snpPairV1)
+					snpPairsAlreadySeen.add(snpPairV2)
 
-				# Get the intersection of SNPs for the two phenotypes
-				sharedSNPs = list(set.intersection(value1, value2))
+					# Get the intersection of SNPs for the two phenotypes
+					sharedSNPs = list(set.intersection(value1, value2))
 
-				# Write this line to the output file
-				if(len(list(sharedSNPs)) > 0):
-					outputLine = key1 + "\t" + key2 + "\t" + str(len(list(sharedSNPs))) + "\t" + str(list(sharedSNPs)) + "\n"
-					edgeMapOutput.write(outputLine)
+					# Write this line to the output file
+					if(len(sharedSNPs) > 0):
+						outputLine = key1 + "\t" + key2 + "\t" + str(len(sharedSNPs)) + "\t" + str(sharedSNPs) + "\n"
+						edgeMapOutput.write(outputLine)
 
-		print("Processed phenotype " + key1 + ", " + str(i) + " out of " + str(len(phenotypeSnpMap_unsorted.keys())) + " phenotypes for the edge map")
+			print("Processed phenotype " + key1 + ", " + str(i) + " out of " + str(len(phenotypeSnpMap_unsorted.keys())) + " phenotypes for the edge map")
 
 	print("Finished creating edge map.")
-	edgeMapOutput.close()
-
 
 print("All done!")
 
