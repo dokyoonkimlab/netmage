@@ -1,5 +1,5 @@
 # Author: Vivek Sriram
-# Last revised: 10/26/2020
+# Last revised: 11/02/2020
 # ------------------------------------------------
 # Function: Script to prepare input data for Gephi.
 #     The script will filter input data, create
@@ -16,7 +16,8 @@ import sys
 
 # Read in user arguments
 parser = argparse.ArgumentParser(description='Take in user input for creation of node and edge maps for Gephi.')
-parser.add_argument('--input-data', dest= 'inputdata', required=True, metavar='path to input data directory', help='directory of input PheWAS data')
+parser.add_argument('--input-directory', dest= 'inputdirectory', default = None, metavar='path to input data directory', help='directory of input PheWAS data')
+parser.add_argument('--input-file', dest= 'inputfile', default = None, metavar='path to input data file', help='filepath for input PheWAS data (csv)')
 parser.add_argument('--edgemap-output', dest='edgemapout', default = "", metavar='path to edge map output file (csv)', help='filepath for edge map output (csv)')
 parser.add_argument('--nodemap-input', dest='nodemapin', default = None, metavar='path to node map input file (csv)', help='filepath for node map input (csv)')
 parser.add_argument('--nodemap-output', dest='nodemapout', default = "", metavar='path to node mapp output file (csv)', help='filepath for node map output (csv)')
@@ -47,7 +48,11 @@ args = parser.parse_args()
 # --pvalue-name "pval" 
 # --delim " "
 
-directoryPath = args.inputdata
+directoryPath = args.inputdirectory
+inputFilePath = args.inputfile
+
+if(directoryPath == None and inputFilePath == None):
+	sys.exit('ERROR: User needs to supply the filepath to the input data file, or a directory containing the input data')
 
 edgeMapOutputPath = args.edgemapout
 
@@ -74,10 +79,13 @@ caseCountColNumber = None
 pValueColNumber = None
 snpColNumber = None
 
-# Get the header row of the first file in our input directory
-firstFileName = os.listdir(directoryPath)[0]
+if(directoryPath != None):
+	# Get the header row of the first file in our input directory
+	firstFileName = os.listdir(directoryPath)[0]
+	inputFilePath = os.path.join(directoryPath, firstFileName)
+
 firstLine = None
-with open(os.path.join(directoryPath, firstFileName), 'r') as firstFile:
+with open(inputFilePath, 'r') as firstFile:
 	firstLine = firstFile.readline()
 	firstLine = firstLine.strip()
 	firstLineAsArray = firstLine.split(fileDelimiter)
@@ -120,57 +128,75 @@ def linePassesFilter(line, mafColNumber, mafFilter, ccColNumber, ccFilter, pvalC
 
 print("Identifying phenotype to SNP mappings...")
 # Initialize SNP Mappings
-phenotypeSnpMap_sorted = {}
 phenotypeSnpMap_unsorted = {}
+phenotypeSnpMap_sorted = {}
+phenotypeSnpMap_snpAndPVal= {}
 
-# Create the SNP mapping from our files
-for filename in os.listdir(directoryPath):
-	with open(os.path.join(directoryPath, filename), 'r') as f:
-		# Save out the file name as the phenotype for now
-		phenotype = os.path.splitext(filename)[0]
+def updatePhenotypeSNPMapFromData(fileName, fileContent, phenotypeSnpMap_unsorted, phenotypeSnpMap_snpAndPVal, phenotypeColNumber, mafColNumber, mafThreshold, caseCountColNumber, caseCountThreshold, pValueColNumber, pValueThreshold, fileDelimiter):
+	# Save out the file name as the phenotype for now
+	phenotype = os.path.splitext(fileName)[0]
 
-		# Initialize dictionaries to keep track of associated SNPs for this phenotype
-		snpsForThisPhenotypeList = []
-		snpsForThisPhenotypeSet = set()
-
-		# Get all lines in the file, except for the header line
-		next(f)
-		for line in f:
-			# Get the elements of each line (and make sure to remove the EOL character in the last column)
-			line = line.strip()
-			lineAsArray = line.split(fileDelimiter)
-
+	# Get all lines in the file, except for the header line
+	next(fileContent)
+	for line in fileContent:
+		# Strip the line of any unnecessary characters
+		line = line.strip()
+		# Get the elements of each line
+		lineAsArray = line.split(fileDelimiter)
+		# If the line is not empty, process it
+		if(lineAsArray != ['']):
 			# If there's a phenotype column, get the name of the phenotype
 			if(phenotypeColNumber != None):
 				phenotype = lineAsArray[phenotypeColNumber]
-
-			# If the line passes all specified thresholds...
+			
+			# If the line passes all specified thresholds, we can use it
 			if(linePassesFilter(lineAsArray, mafColNumber, mafThreshold, caseCountColNumber, caseCountThreshold, pValueColNumber, pValueThreshold)):
 				# Get the name of the SNP
 				snpName = lineAsArray[snpColNumber]
+
+				# Set is used for the edge map, to find overlaps of associations between phenotypes
+				currentSetOfSNPsForThisPhenotype = set()
+				# Get the current set of SNPs corresponding to this phenotype, if one exists already
+				if(phenotype in phenotypeSnpMap_unsorted.keys()):
+					currentSetOfSNPsForThisPhenotype = phenotypeSnpMap_unsorted[phenotype]
 				# Add the SNP to which this line corresponds to our set of associated SNPs for this phenotype
-				snpsForThisPhenotypeSet.add(snpName)
+				currentSetOfSNPsForThisPhenotype.add(snpName)
+				phenotypeSnpMap_unsorted[phenotype] = currentSetOfSNPsForThisPhenotype
 
 				# If the input data includes p-value information, get the p-value for the SNP too
 				if(pValueColNumber != None):
 					snpPValue = lineAsArray[pValueColNumber]
-					
-					# Add a tuple of (SNP ID, p-value) to our list
 					snpPValueFloat = float(snpPValue)
-					snpsForThisPhenotypeList.append((snpName, snpPValueFloat))
+					
+					# List is used for the node map to present a sorted list of nodes
+					currentListOfSNPsForThisPhenotype = []
+					if(phenotype in phenotypeSnpMap_snpAndPVal.keys()):
+						currentListOfSNPsForThisPhenotype = phenotypeSnpMap_snpAndPVal[phenotype]
+					# Add a tuple of (SNP ID, p-value) to our list
+					currentListOfSNPsForThisPhenotype.append((snpName, snpPValueFloat))
+					phenotypeSnpMap_snpAndPVal[phenotype] = currentListOfSNPsForThisPhenotype
 
-		# If SNPs have been found for this phenotype, we add it to our mappings
-		if(len(snpsForThisPhenotypeSet) > 0):
-			# Set is used for the edge map, to find overlaps of associations between phenotypes;
-			phenotypeSnpMap_unsorted[phenotype] = snpsForThisPhenotypeSet
+	return (phenotypeSnpMap_sorted, phenotypeSnpMap_snpAndPVal)
 
-		if(len(snpsForThisPhenotypeList) > 0):
-			# List is used for the node map to present a sorted list of nodes
-			# Sort the list by p-value (i.e., by the second element of each tuple)
-			snpsForThisPhenotypeList.sort(key = lambda x: float(x[1]), reverse = False)
-			# Get a list of the now sorted SNP IDs
-			snpNamesSorted = [i[0] for i in snpsForThisPhenotypeList]
-			phenotypeSnpMap_sorted[phenotype] = snpNamesSorted
+
+if(directoryPath != None):
+	# Create the SNP mapping from our files
+	for filename in os.listdir(directoryPath):
+		with open(os.path.join(directoryPath, filename), 'r') as f:
+			phenotypeSnpMap_sorted, phenotypeSnpMap_snpAndPVal = updatePhenotypeSNPMapFromData(filename, f, phenotypeSnpMap_unsorted, phenotypeSnpMap_snpAndPVal, phenotypeColNumber, mafColNumber, mafThreshold, caseCountColNumber, caseCountThreshold, pValueColNumber, pValueThreshold, fileDelimiter)
+else:
+	with open(inputFilePath, 'r') as f:
+		phenotypeSnpMap_sorted, phenotypeSnpMap_snpAndPVal = updatePhenotypeSNPMapFromData(inputFilePath, f, phenotypeSnpMap_unsorted, phenotypeSnpMap_snpAndPVal, phenotypeColNumber, mafColNumber, mafThreshold, caseCountColNumber, caseCountThreshold, pValueColNumber, pValueThreshold, fileDelimiter)
+
+# Sort all the tuple lists by phenotype at the end
+for key in phenotypeSnpMap_snpAndPVal:
+	snpsForThisPhenotype = phenotypeSnpMap_snpAndPVal[key]
+	# Sort the list by p-value (i.e., by the second element of each tuple)
+	snpsForThisPhenotype.sort(key = lambda x: float(x[1]), reverse = False)
+	# Get a list of the now sorted SNP IDs
+	snpNamesSorted = [i[0] for i in snpsForThisPhenotype]
+	# Update the list in our map
+	phenotypeSnpMap_sorted[key] = snpNamesSorted
 
 print("Finished identifying phenotype to SNP mappings.")
 
