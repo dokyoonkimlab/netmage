@@ -20,7 +20,7 @@ parser = argparse.ArgumentParser(description='Take in user input for creation of
 parser.add_argument('--input-files', dest= 'inputfiles', default = None, required = True, metavar='regular expression for input data file(s)', help='regular expression for input data')
 parser.add_argument('--edgemap-output', dest='edgemapout', default = "", metavar='path to edge map output file (csv)', help='filepath for edge map output (csv)')
 parser.add_argument('--nodemap-input', dest='nodemapin', default = None, metavar='path to node map input file (csv)', help='filepath for node map input (csv)')
-parser.add_argument('--nodemap-output', dest='nodemapout', default = "", metavar='path to node mapp output file (csv)', help='filepath for node map output (csv)')
+parser.add_argument('--nodemap-output', dest='nodemapout', default = "", metavar='path to node map output file (csv)', help='filepath for node map output (csv)')
 parser.add_argument('--maf-threshold', dest='mafthresh', metavar = 'threshold for MAF filtration', help='threshold for minor allele frequency filtration')
 parser.add_argument('--casecount-threshold', dest='ccthresh', metavar = 'threshold for case count filtration', help='threshold for case count filtration')
 parser.add_argument('--pvalue-threshold', dest='pvalthresh', metavar = 'threshold for p-value', help='threshold for significance of association between SNP and phenotype')
