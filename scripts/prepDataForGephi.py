@@ -17,19 +17,20 @@ import glob
 
 # Read in user arguments
 parser = argparse.ArgumentParser(description='Take in user input for creation of node and edge maps for Gephi.')
-parser.add_argument('--input-files', dest= 'inputfiles', default = None, required = True, metavar='regular expression for input data file(s)', help='regular expression for input data')
-parser.add_argument('--edgemap-output', dest='edgemapout', default = "", metavar='path to edge map output file (csv)', help='filepath for edge map output (csv)')
-parser.add_argument('--nodemap-input', dest='nodemapin', default = None, metavar='path to node map input file (csv)', help='filepath for node map input (csv)')
-parser.add_argument('--nodemap-output', dest='nodemapout', default = "", metavar='path to node map output file (csv)', help='filepath for node map output (csv)')
-parser.add_argument('--maf-threshold', dest='mafthresh', metavar = 'threshold for MAF filtration', help='threshold for minor allele frequency filtration')
-parser.add_argument('--casecount-threshold', dest='ccthresh', metavar = 'threshold for case count filtration', help='threshold for case count filtration')
-parser.add_argument('--pvalue-threshold', dest='pvalthresh', metavar = 'threshold for p-value', help='threshold for significance of association between SNP and phenotype')
-parser.add_argument('--phenotype-name', dest='phenotypename', metavar = 'name of variable for phenotype ID', help='name of variable corresponding to phenotype ID')
-parser.add_argument('--snp-name', dest='snpname', required=True, metavar = 'name of variable for SNP ID', help='name of variable corresponding to SNP ID')
-parser.add_argument('--maf-name', dest='mafname', metavar = 'MAF variable name', help='name of variable corresponding to minor allele frequency')
-parser.add_argument('--casecount-name', dest='ccname', metavar = 'case count variable name', help='name of variable corresponding to case count')
-parser.add_argument('--pvalue-name', dest='pvname', metavar = 'name of variable for p-value association', help='name of variable corresponding to p-value of association')
-parser.add_argument('--delim', dest='delim', required=True, metavar = 'delimiter used in input PheWAS datasets', help='delimiter used in input PheWAS data')
+parser.add_argument('--input-files', dest= 'inputfiles', default = None, required = True, metavar='input data (regex)', help='Regular expression for input data. Ex: "dir/*.csv"')
+parser.add_argument('--edgemap-output', dest='edgemapout', default = "", metavar='edge map output file', help='Filepath for edge map output file (tsv)')
+parser.add_argument('--nodemap-input', dest='nodemapin', default = None, metavar='node map input file', help='Filepath for node map input file')
+parser.add_argument('--nodemap-output', dest='nodemapout', default = "", metavar='node map output file', help='Filepath for node map output file (tsv)')
+parser.add_argument('--maf-threshold', dest='mafthresh', metavar = 'MAF threshold', help='Threshold for minor allele frequency for filtration. Requires argument MAF column name --maf-name')
+parser.add_argument('--casecount-threshold', dest='ccthresh', metavar = 'case count threshold', help='Threshold for case count filtration. Requires argument case count column name --casecount-name')
+parser.add_argument('--pvalue-threshold', dest='pvalthresh', metavar = 'p-value threshold', help='Threshold for significance of association between SNP and phenotype. Requires argument p-value column name --pvalue-name')
+parser.add_argument('--phenotype-name', dest='phenotypename', metavar = 'phenotype colname', help='Name of column corresponding to phenotype')
+parser.add_argument('--snp-name', dest='snpname', required=True, metavar = 'SNP ID colname', help='Name of column corresponding to SNP ID')
+parser.add_argument('--maf-name', dest='mafname', metavar = 'MAF colname', help='Name of column corresponding to minor allele frequency')
+parser.add_argument('--casecount-name', dest='ccname', metavar = 'case count colname', help='Name of column corresponding to case count')
+parser.add_argument('--pvalue-name', dest='pvname', metavar = 'p-value colname', help='Name of column corresponding to p-value of association')
+parser.add_argument('--delim', dest='delim', required=True, metavar = 'delimiter', help='Delimiter used in input PheWAS data file(s)')
+parser.add_argument('--ld-file', dest='ldfile', metavar = 'ld-file for pruning', help = 'Linkage disequilibrium file generated using plink --show-tags. Custom file will also work as long as the header has "SNP" and "TAGS". File should be space seperated with TAGS seperated by "|"')
 
 args = parser.parse_args()
 
@@ -67,7 +68,10 @@ caseCountColName = args.ccname
 pValueColName = args.pvname
 
 fileDelimiter = args.delim
+ldFile = args.ldfile
 
+if (fileDelimiter == "\\t"):
+	fileDelimiter = '\t'
 
 def getColumnNumbers(fileName, line):
 	phenotypeColNumber = None
@@ -162,6 +166,36 @@ def updatePhenotypeSNPMapFromData(fileName, fileContent, phenotypeSnpMap_unsorte
 	return (phenotypeSnpMap_unsorted, phenotypeSnpMap_snpAndPVal)
 
 
+# Parse ld file generated by plink --show-tags and create a map with snpid as key and list of snps in ld as value
+def parseLdFile(file):
+	snpLdsetMap = {}
+	with open(file) as inf:
+		header = next(inf)
+		header = header.strip()
+		header = header.split()
+		snpIndex = header.index("SNP")
+		tagIndex = header.index("TAGS")
+		for line in inf:
+			line = line.strip()
+			line = line.split()
+			snpLdsetMap[line[snpIndex]] = line[tagIndex].split('|')
+	return(snpLdsetMap)
+
+
+def getLdPrunedCount(snpLdsetMap, snpList):
+	if not snpLdsetMap:
+		return(len(snpList))
+	count = 0
+	ldSet = set()
+	for snp in snpList:
+		if snp in snpLdsetMap:
+			if snp not in ldSet:
+				count += 1
+			ldSet.update(snpLdsetMap[snp])
+		else:
+			count += 1
+		ldSet.add(snp)
+	return(count)
 
 
 
@@ -202,7 +236,7 @@ if(nodeMapOutputPath != ""):
 	print("Creating node map...")
 	print("We will be processing " + str(len(phenotypeSnpMap_unsorted)) + " phenotypes in total for our node map.")
 
-	with open(nodeMapOutputPath, 'a') as outf:
+	with open(nodeMapOutputPath, 'w') as outf:
 		nodeMapOutput = csv.writer(outf, delimiter = '\t')
 
 		# If the user has not provided an input map off of which to work, we will come up with our own
@@ -264,8 +298,12 @@ if(nodeMapOutputPath != ""):
 if(edgeMapOutputPath != ""):
 	print("Creating edge map...")
 
+	snpLdsetMap = None
+	if ldFile:
+		snpLdsetMap = parseLdFile(ldFile)
+
 	# Write to an output file that will include all pairs of phenotypes and their shared SNPs
-	with open(edgeMapOutputPath, "a") as edgeMapOutput:
+	with open(edgeMapOutputPath, "w") as edgeMapOutput:
 		edgeMapOutput.write("Source\tTarget\tWeight\tlistOfSharedSNPs\n")
 		snpPairsAlreadySeen = set()
 
@@ -287,8 +325,7 @@ if(edgeMapOutputPath != ""):
 
 					# Write this line to the output file
 					if(len(sharedSNPs) > 0):
-						outputLine = key1 + "\t" + key2 + "\t" + str(len(sharedSNPs)) + "\t" + str(sharedSNPs) + "\n"
-						edgeMapOutput.write(outputLine)
+						edgeMapOutput.write(key1 + "\t" + key2 + "\t" + str(getLdPrunedCount(snpLdsetMap, sharedSNPs)) + "\t" + str(sharedSNPs) + "\n")
 
 			print("Processed phenotype " + key1 + ", " + str(i) + " out of " + str(len(phenotypeSnpMap_unsorted.keys())) + " phenotypes for the edge map")
 
