@@ -101,7 +101,7 @@ function initSigma(config) {
 				a.clusters[b.color] || (a.clusters[b.color] = []);
 				a.clusters[b.color].push(b.id);//SAH: push id not label
         a.clusterNames[b.color] || (sigInst.clusterNames[b.color] = []);
-        a.clusterNames[b.color]=b.attr.attributes["Category"];
+        a.clusterNames[b.color]=b.attr.attributes["category"];
 			}
 		
 		);
