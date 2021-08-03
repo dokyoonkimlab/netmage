@@ -1,4 +1,4 @@
-# NETMAGE: a Human-Disesae Phenotype Map Generator for the Visualization of PheWAS Results
+# NETMAGE: a Human-Disease Phenotype Map Generator for the Visualization of PheWAS Results
 
 Given genetic associations from a Phenome-Wide Association Study (PheWAS), a disease-disease network can be constructed where nodes represent phenotypes and edges represent shared genetic associations between phenotypes. To improve the ease of network-based analysis of shared genetic components across phenotypes, we developed the humaN-disEase phenoType MAp GEnerator (NETMAGE), a web-based tool that produces interactive phenotype network visualizations from PheWAS summary statistics.
 
@@ -7,7 +7,26 @@ Our service runs at https://hdpm.biomedinfolab.com/netmage. Source code can be d
 Contact: dokyoon.kim@pennmedicine.upenn.edu
 
 ## Constructing the network
-The NETMAGE website will automatically process uploaded PheWAS data and create a corresponding DDN. Input data can be in the format of one file per phenotype, or a single file including all phenotypes and a phenotype ID column. Each row in each file must correspond to a different SNP and have a column corresponding to SNP ID. Minor allele frequency and p-value can also be included as columns to be used for data filtration in NETMAGE. Please refer to the video at https://hdpm.biomedinfolab.com/ for a detailed demonstration of how to use our tool.
+The NETMAGE website will automatically process uploaded PheWAS data and create a corresponding DDN. Input data can be in the format of one file per phenotype, or a single file including all phenotypes and a phenotype ID column. Each row in each file must correspond to a different SNP and have a column corresponding to SNP ID. Minor allele frequency and p-value can also be included as columns to be used for data filtration in NETMAGE. 
+
+#### Example of input PheWAS Summary Data that can be uploaded to NETMAGE
+This text file is space-separated, and includes a column for phenotype name, SNP ID, minor allele frequency, case count, and p-value. Out of these variables, SNP ID is the only required piece of information. If multiple files are uploaded where each file represents a different phenotype, then phenotype name is not required as a variable.
+```console
+phenotype ID af num_cases pval
+193 rs1877431 0.610306 358 4.39e-09
+193 rs7045465 0.610372 358 4.14e-09
+193 rs7037324 0.633612 358 1.63e-09
+193 rs1561957 0.631138 358 1.98e-09
+241.2 rs12128006 0.197036 680 5.53e-09
+241.2 rs1543443 0.732968 680 9.76e-09
+241 rs118039499 0.025752 1143 1.17e-10
+241 rs7030280 0.666904 1143 2.63e-12
+241 rs10983700 0.666993 1143 2.20e-12
+```
+
+Example data are included in the "example_data" directory. "exampleData_singleFile.txt" gives PheWAS summary data in a single text file. This file on its own can be uploaded to NETMAGE to generate a corresponding DDN. "exampleRawData.zip" is a zip file that contains PheWAS summary data, separated into a single file per phenotype. Instead of "exampleData_singleFile.txt," these files contained in this zip can be uploaded to NETMAGE to generate the same network. "exampleProcessedData.zip" is a zip file that includes processed NETMAGE results based upon the information in "exampleRawData.zip". The .netmage file in "exampleProcessedData.zip" can be uploaded to create the same DDN. Finally, "diseaseCategoryMappings.csv" includes disease-to-disease category information. It can be used in combination with "exampleRawData" or "exampleData_singleFile.txt" to introduce color into the produced DDNs.
+
+Please refer to the video guide at https://hdpm.biomedinfolab.com/netmage/ for a detailed demonstration of how to use our tool.
 
 Pre-processing on input data is contained within two Python scripts: makeIntermediateNodeMap.py and createNodeAndEdgeMap.py. Both of these files are located in the "scripts" directory. They are built into the NETMAGE website and never need to be used on their own. However, if a user wishes to work directly with either script, both can be downloaded from this GitHub page and run as described later in this README. makeIntermediateNodeMap.py is intended to create a disease-to-snp mapping that can be accessed for network generation. createNodeAndEdgeMap.py will take the disease-to-snp mapping output, apply p-value and minor allele frequency filters, and generate a corresponding node map (includes attributes of each phenotype in the network) and edge map (includes a full list of all connections between phenotypes in the network).
 
